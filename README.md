@@ -23,8 +23,16 @@ Examples:
 This organization is subject to change, but initially there will be:
 
 ```
-/
-/docs
-/cloudformation
-/utils
+.
+├── config.yaml
+├── modules
+│   ├── aws_module.py
+│   ├── __init__.py
+│   ├── jira_module.py
+│   └── slack_module.py
+├── please.py
+├── README.md
+└── utils
+    ├── config_loader.py
+    ├── __init__.py
 ```

@@ -1,0 +1,13 @@
+aws:
+  default_region: us-east-1
+  management_account_id: "01234567890"
+  audit_account_id: "01234567890"
+
+jira:
+  url: "https://mycompany.atlassian.net/"
+  user: "email@domain.tld"
+  token: "abcdef"
+  project: "SECOPS"
+
+slack:
+  webhook_url: "https://hooks.slack.com/"
