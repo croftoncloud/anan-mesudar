@@ -4,7 +4,8 @@ from utils.config_loader import load_config
 from modules.aws_module import (
     verify_aws_connection,
     list_active_accounts,
-    # get_alternate_contacts,
+    get_alternate_contacts,
+    set_alternate_contacts,
 )
 from modules.jira_module import verify_jira_connection
 from modules.slack_module import verify_slack_connection
@@ -54,6 +55,25 @@ def list_accounts(config):
     for account in accounts:
         logger.info(f"Account ID: {account['Id']}, Name: {account['Name']}, Email: {account['Email']}")
 
+def format_contact(contact):
+    """
+    Format the contact information for human-readable output.
+
+    Args:
+        contact (dict): The contact information dictionary.
+
+    Returns:
+        str: Formatted string for the contact information.
+    """
+    if not contact:
+        return "Not Set"
+    return (
+        f"\tName: {contact.get('Name', 'N/A')}\n"
+        f"\tEmail: {contact.get('EmailAddress', 'N/A')}\n"
+        f"\tPhone: {contact.get('PhoneNumber', 'N/A')}\n"
+        f"\tTitle: {contact.get('Title', 'N/A')}"
+    )
+
 def get_alternate_contacts_for_all_accounts(config):
     """
     Retrieve alternate contacts for all active accounts in AWS Organizations.
@@ -64,19 +84,46 @@ def get_alternate_contacts_for_all_accounts(config):
         region=config["aws"]["default_region"],
     )
 
-    logger.info(f"Found {len(accounts)} active accounts. Querying alternate contacts...")
+    logger.info(f"Found {len(accounts)} active accounts. Querying alternate contacts...\n")
     for account in accounts:
+        logger.info(f"Retrieving alternate contacts for account {account['Id']} ({account['Name']})...\n")
         contacts = get_alternate_contacts(
             account_id=account["Id"],
             region=config["aws"]["default_region"],
         )
+
         if "Error" in contacts:
             logger.error(f"Failed to retrieve contacts for account {account['Id']}: {contacts['Error']}")
         else:
-            logger.info(f"Alternate Contacts for Account {account['Id']}:")
-            logger.info(f"  Billing Contact: {contacts['BillingContact']}")
-            logger.info(f"  Operations Contact: {contacts['OperationsContact']}")
-            logger.info(f"  Security Contact: {contacts['SecurityContact']}")
+            logger.info(
+                f"Alternate Contacts for Account {account['Id']} ({account['Name']}):\n"
+                f"  Billing Contact:\n{format_contact(contacts['BillingContact'])}\n"
+                f"  Operations Contact:\n{format_contact(contacts['OperationsContact'])}\n"
+                f"  Security Contact:\n{format_contact(contacts['SecurityContact'])}\n"
+            )
+
+def set_alternate_contacts_for_all_accounts(config):
+    """
+    Set alternate contacts for all active accounts in AWS Organizations.
+    """
+    logger.info("Retrieving active accounts in AWS Organizations...")
+    accounts = list_active_accounts(
+        account_id=config["aws"]["management_account_id"],
+        region=config["aws"]["default_region"],
+    )
+
+    logger.info(f"Found {len(accounts)} active accounts. Setting alternate contacts...")
+    for account in accounts:
+        logger.info(f"Setting alternate contacts for account {account['Id']}...")
+        success = set_alternate_contacts(
+            account_id=account["Id"],
+            region=config["aws"]["default_region"],
+            config=config,
+        )
+        if success:
+            logger.info(f"Successfully set alternate contacts for account {account['Id']}.")
+        else:
+            logger.error(f"Failed to set alternate contacts for account {account['Id']}.")
 
 def main():
     # Parse CLI arguments
@@ -92,6 +139,11 @@ def main():
         action="store_true",
         help="Retrieve alternate contact information for all active accounts.",
     )
+    parser.add_argument(
+        "--set-alternate-contacts",
+        action="store_true",
+        help="Set alternate contact information."
+    )
     args = parser.parse_args()
 
     # Load configuration
@@ -101,8 +153,10 @@ def main():
         test_connections(config)
     elif args.list_accounts:
         list_accounts(config)
-    # elif args.get_alternate_contacts:
-    #     get_alternate_contacts_for_all_accounts(config)
+    elif args.get_alternate_contacts:
+        get_alternate_contacts_for_all_accounts(config)
+    elif args.set_alternate_contacts:
+        set_alternate_contacts_for_all_accounts(config)
     else:
         logger.info("No action specified. Use --help to see available options.")
 

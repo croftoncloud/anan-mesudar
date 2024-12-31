@@ -72,9 +72,16 @@ def get_alternate_contacts(account_id, region):
         client = session.client("account")
 
         # Retrieve alternate contacts
-        billing_contact = client.get_alternate_contact(ContactType="BILLING").get("AlternateContact", {})
-        operations_contact = client.get_alternate_contact(ContactType="OPERATIONS").get("AlternateContact", {})
-        security_contact = client.get_alternate_contact(ContactType="SECURITY").get("AlternateContact", {})
+        def fetch_contact(contact_type):
+            try:
+                return client.get_alternate_contact(AlternateContactType=contact_type).get("AlternateContact", {})
+            except client.exceptions.ResourceNotFoundException:
+                logger.info(f"No {contact_type.lower()} contact set for account {account_id}.")
+                return None
+
+        billing_contact = fetch_contact("BILLING")
+        operations_contact = fetch_contact("OPERATIONS")
+        security_contact = fetch_contact("SECURITY")
 
         return {
             "AccountID": account_id,
@@ -93,3 +100,67 @@ def get_alternate_contacts(account_id, region):
     except Exception as e:
         logger.error(f"An unexpected error occurred while retrieving contacts for account {account_id}: {e}")
         return {"AccountID": account_id, "Error": str(e)}
+
+def set_alternate_contacts(account_id, region, config):
+    """
+    Sets alternate contact information for a given AWS account.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        region (str): The AWS region to use.
+        config (dict): Configuration dictionary containing alternate contact details.
+
+    Returns:
+        bool: True if all contacts were set successfully, False otherwise.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id, region_name=region)
+        client = session.client("account")
+
+        # Helper function to set a single contact type
+        def set_contact(contact_type, name, email, phone, title):
+            client.put_alternate_contact(
+                AlternateContactType=contact_type,
+                Name=name,
+                EmailAddress=email,
+                PhoneNumber=phone,
+                Title=title,
+            )
+            logger.info(f"Successfully set {contact_type.lower()} contact for account {account_id}.")
+
+        # Set billing contact
+        set_contact(
+            "BILLING",
+            config["aws"]["alternate_contact_billing_name"],
+            config["aws"]["alternate_contact_billing_email"],
+            config["aws"]["alternate_contact_billing_phone"],
+            config["aws"]["alternate_contact_billing_title"],
+        )
+
+        # Set operations contact
+        set_contact(
+            "OPERATIONS",
+            config["aws"]["alternate_contact_operations_name"],
+            config["aws"]["alternate_contact_operations_email"],
+            config["aws"]["alternate_contact_operations_phone"],
+            config["aws"]["alternate_contact_operations_title"],
+        )
+
+        # Set security contact
+        set_contact(
+            "SECURITY",
+            config["aws"]["alternate_contact_security_name"],
+            config["aws"]["alternate_contact_security_email"],
+            config["aws"]["alternate_contact_security_phone"],
+            config["aws"]["alternate_contact_security_title"],
+        )
+
+        return True
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        logger.error(f"Failed to set alternate contacts for account {account_id}: {error_code}")
+        return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while setting alternate contacts for account {account_id}: {e}")
+        return False
