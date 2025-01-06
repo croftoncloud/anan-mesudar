@@ -24,7 +24,11 @@ This organization is subject to change, but initially there will be:
 
 ```
 .
-├── config.yaml
+├── assets
+│   ├── branch-protection-rules01.jpg
+│   └── branch-protection-rules02.jpg
+├── config.example
+├── config.yaml (local populated version)
 ├── modules
 │   ├── aws_module.py
 │   ├── __init__.py
@@ -68,6 +72,12 @@ Some rules for effective life in GitHub include:
 4. Document Pull Request process: Will you use codeowners / codereviewers or will it be ad-hoc? Document the decision and why for future onboarding.
 5. Document LINTING process: Will the code receive a LINT on every `push` or only on `pull request`? Will the output be logged in the comments in GitHub?
 6. Document SAST process: Again, will the code receive a static analysis on every `push` or only when going to `pull request`? How will developers know about the issues? Will they be fed back as comments, will tickets be created, or some combination of both?
+
+Reference images for __Branch Protection__ under repository *Settings* tab:
+
+![branch-protection-settings](assets/branch-protection-rules01.jpg)
+
+![branch-protection-rule](assets/branch-protection-rules02.jpg)
 
 #### GitHub Reference Architecture
 
