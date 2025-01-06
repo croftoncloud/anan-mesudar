@@ -62,7 +62,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ruby-full build-essential
-          gem install cfn-nag
+          sudo gem install cfn-nag
 
       - name: Run cfn-nag scan
         id: cfn_nag_scan
