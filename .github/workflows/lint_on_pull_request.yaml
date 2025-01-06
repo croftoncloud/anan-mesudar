@@ -32,9 +32,8 @@ jobs:
           cfn-lint cloudformation/**/*.yaml > cfn_lint_results.txt || true
           if [ -s cfn_lint_results.txt ]; then
             echo "results=$(cat cfn_lint_results.txt | sed ':a;N;$!ba;s/\r//g' | sed ':a;N;$!ba;s/\n/\\n/g')" >> $GITHUB_OUTPUT
-            echo "comment_message=## cfn-lint Results\n\`\`\`\n$(cat cfn_lint_results.txt)\n\`\`\`" >> $GITHUB_OUTPUT
           else
-            echo "comment_message=CloudFormation format appears correct." >> $GITHUB_OUTPUT
+            echo "results=CloudFormation format appears correct." >> $GITHUB_OUTPUT
           fi
 
       - name: Comment on Pull Request
