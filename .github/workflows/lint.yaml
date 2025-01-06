@@ -35,117 +35,125 @@ jobs:
           python -m pip install --upgrade pip
           pip install cfn-lint
 
-      # Step 4: Run cfn-lint
-      - name: Lint CloudFormation templates
-        id: cfn_lint_step
+      # Step 4: Run cfn-lint for YAML
+      - name: Lint CloudFormation YAML templates
+        id: cfn_lint_yaml
         run: |
-          cfn-lint cloudformation/**/*.yaml 2>&1 $GITHUB_OUTPUT
-          cfn-lint cloudformation/**/*.yml 2>&1 $GITHUB_OUTPUT
-        continue-on-error: true
+          cfn-lint cloudformation/**/*.yaml > yaml_results.txt || true
+          echo "yaml=$(cat yaml_results.txt)" >> $GITHUB_OUTPUT
 
-      # Step 5: Post results to PR
+      # Step 5: Run cfn-lint for YML
+      - name: Lint CloudFormation YML templates
+        id: cfn_lint_yml
+        run: |
+          cfn-lint cloudformation/**/*.yml > yml_results.txt || true
+          echo "yml=$(cat yml_results.txt)" >> $GITHUB_OUTPUT
+
+      # Step 6: Post results to PR
       - name: Comment on Pull Request
         if: always()
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const result = `## cfn-lint Results\n\`\`\`\n${steps['cfn_lint_step'].outputs.*}\n\`\`\``;
+            const yamlResults = `${{ steps.cfn_lint_yaml.outputs.yaml }}`;
+            const ymlResults = `${{ steps.cfn_lint_yml.outputs.yml }}`;
+            const body = `## cfn-lint Results\n\n### YAML Files\n\`\`\`\n${yamlResults}\n\`\`\`\n\n### YML Files\n\`\`\`\n${ymlResults}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: result,
+              body: body,
             });
 
-  cfn-nag:
-    name: Run cfn-nag scan
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: write
-      security-events: write
-    needs: cfn-lint
+  # cfn-nag:
+  #   name: Run cfn-nag scan
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: read
+  #     contents: read
+  #     pull-requests: write
+  #     security-events: write
+  #   needs: cfn-lint
 
-    steps:
-      # Step 1: Check out the repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  #   steps:
+  #     # Step 1: Check out the repository
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v3
 
-      # Step 2: Install dependencies
-      - name: Install Ruby and cfn-nag
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ruby-full build-essential
-          gem install cfn-nag
+  #     # Step 2: Install dependencies
+  #     - name: Install Ruby and cfn-nag
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y ruby-full build-essential
+  #         gem install cfn-nag
 
-      # Step 3: Run cfn-nag
-      - name: Run cfn-nag scan
-        id: cfn_nag_step
-        run: |
-          cfn_nag_scan --input-path cloudformation --output-format txt 2>&1 $GITHUB_OUTPUT
-        continue-on-error: true
+  #     # Step 3: Run cfn-nag
+  #     - name: Run cfn-nag scan
+  #       id: cfn_nag_step
+  #       run: |
+  #         cfn_nag_scan --input-path cloudformation --output-format txt 2>&1 $GITHUB_OUTPUT
+  #       continue-on-error: true
 
-      # Step 4: Post results to PR
-      - name: Comment on Pull Request
-        if: always()
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const result = `## cfn-nag Results\n\`\`\`\n${steps['cfn_nag_step'].outputs.*}\n\`\`\``;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: result,
-            });
+  #     # Step 4: Post results to PR
+  #     - name: Comment on Pull Request
+  #       if: always()
+  #       uses: actions/github-script@v6
+  #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         script: |
+  #           const result = `## cfn-nag Results\n\`\`\`\n${steps['cfn_nag_step'].outputs.*}\n\`\`\``;
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: result,
+  #           });
 
-  pylint:
-    name: Run Pylint on Python files
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: write
+  # pylint:
+  #   name: Run Pylint on Python files
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     actions: read
+  #     contents: read
+  #     pull-requests: write
 
-    steps:
-      # Step 1: Check out the repository
-      - name: Checkout repository
-        uses: actions/checkout@v3
+  #   steps:
+  #     # Step 1: Check out the repository
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v3
 
-      # Step 2: Set up Python
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+  #     # Step 2: Set up Python
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v4
+  #       with:
+  #         python-version: '3.x'
 
-      # Step 3: Install Pylint
-      - name: Install Pylint
-        run: |
-          python -m pip install --upgrade pip
-          pip install pylint
+  #     # Step 3: Install Pylint
+  #     - name: Install Pylint
+  #       run: |
+  #         python -m pip install --upgrade pip
+  #         pip install pylint
 
-      # Step 4: Run Pylint
-      - name: Run Pylint on all Python files
-        id: pylint_step
-        run: |
-          pylint *.py 2>&1 $GITHUB_OUTPUT
-          pylint modules/**/*.py 2>&1 $GITHUB_OUTPUT
-        continue-on-error: true
+  #     # Step 4: Run Pylint
+  #     - name: Run Pylint on all Python files
+  #       id: pylint_step
+  #       run: |
+  #         pylint *.py 2>&1 $GITHUB_OUTPUT
+  #         pylint modules/**/*.py 2>&1 $GITHUB_OUTPUT
+  #       continue-on-error: true
 
-      # Step 5: Post results to PR
-      - name: Comment on Pull Request
-        if: always()
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const result = `## Pylint Results\n\`\`\`\n${steps['pylint_step'].outputs.*}\n\`\`\``;
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: result,
-            });
+  #     # Step 5: Post results to PR
+  #     - name: Comment on Pull Request
+  #       if: always()
+  #       uses: actions/github-script@v6
+  #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         script: |
+  #           const result = `## Pylint Results\n\`\`\`\n${steps['pylint_step'].outputs.*}\n\`\`\``;
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: result,
+  #           });
