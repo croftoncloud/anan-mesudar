@@ -8,15 +8,20 @@ on:
   pull_request:
     branches: [ main ]
 
+name: cfn-lint Pull Request Check
+
+on:
+  pull_request:
+    branches:
+      - '**'
+
 jobs:
   cfn-lint:
-    name: Run cfn-lint scan
+    name: Run cfn-lint
     runs-on: ubuntu-latest
     permissions:
-      actions: read
-      contents: read
       pull-requests: write
-      security-events: write
+      contents: read
 
     steps:
       # Step 1: Check out the repository
@@ -35,30 +40,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install cfn-lint
 
-      # Step 4: Run cfn-lint for YAML
-      - name: Lint CloudFormation YAML templates
-        id: cfn_lint_yaml
+      # Step 4: Run cfn-lint on all YAML files
+      - name: Run cfn-lint
+        id: run_cfn_lint
         run: |
-          cfn-lint cloudformation/**/*.yaml > yaml_results.txt || true
-          echo "yaml=$(cat yaml_results.txt)" >> $GITHUB_OUTPUT
+          cfn-lint cloudformation/**/*.yaml > cfn_lint_results.txt 2>&1 || true
+          echo "results=$(cat cfn_lint_results.txt)" >> $GITHUB_ENV
 
-      # Step 5: Run cfn-lint for YML
-      - name: Lint CloudFormation YML templates
-        id: cfn_lint_yml
-        run: |
-          cfn-lint cloudformation/**/*.yml > yml_results.txt || true
-          echo "yml=$(cat yml_results.txt)" >> $GITHUB_OUTPUT
-
-      # Step 6: Post results to PR
+      # Step 5: Post results to the Pull Request
       - name: Comment on Pull Request
-        if: always()
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const yamlResults = `${{ steps.cfn_lint_yaml.outputs.yaml }}`;
-            const ymlResults = `${{ steps.cfn_lint_yml.outputs.yml }}`;
-            const body = `## cfn-lint Results\n\n### YAML Files\n\`\`\`\n${yamlResults}\n\`\`\`\n\n### YML Files\n\`\`\`\n${ymlResults}\n\`\`\``;
+            const lintResults = process.env.results;
+            const body = `## cfn-lint Results\n\`\`\`\n${lintResults}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
