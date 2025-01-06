@@ -47,6 +47,7 @@ jobs:
         if: always()
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const result = `## cfn-lint Results\n\`\`\`\n${steps['cfn-lint'].outputs.result}\n\`\`\``;
             github.rest.issues.createComment({
@@ -90,6 +91,7 @@ jobs:
         if: always()
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const result = `## cfn-nag Results\n\`\`\`\n${steps['cfn-nag'].outputs.result}\n\`\`\``;
             github.rest.issues.createComment({
@@ -136,6 +138,7 @@ jobs:
         if: always()
         uses: actions/github-script@v6
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const result = `## Pylint Results\n\`\`\`\n${steps['pylint'].outputs.result}\n\`\`\``;
             github.rest.issues.createComment({
