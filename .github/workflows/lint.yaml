@@ -2,11 +2,11 @@ name: Code Linting
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - '**'
-  # pull_request:
-  #   branches: [ main ]
+  # push:
+  #   branches:
+  #     - '**'
+  pull_request:
+    branches: [ main ]
 
 jobs:
   cfn-lint:
