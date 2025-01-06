@@ -39,7 +39,8 @@ jobs:
       - name: Lint CloudFormation templates
         id: cfn_lint_step
         run: |
-          cfn-lint cloudformation/**/*.yaml || cfn-lint cloudformation/**/*.yml
+          cfn-lint cloudformation/**/*.yaml 2>&1 $GITHUB_OUTPUT
+          cfn-lint cloudformation/**/*.yml 2>&1 $GITHUB_OUTPUT
         continue-on-error: true
 
       # Step 5: Post results to PR
@@ -49,7 +50,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const result = `## cfn-lint Results\n\`\`\`\n${steps['cfn_lint_step'].outputs.result}\n\`\`\``;
+            const result = `## cfn-lint Results\n\`\`\`\n${steps['cfn_lint_step'].outputs.*}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -83,7 +84,7 @@ jobs:
       - name: Run cfn-nag scan
         id: cfn_nag_step
         run: |
-          cfn_nag_scan --input-path cloudformation
+          cfn_nag_scan --input-path cloudformation --output-format txt 2>&1 $GITHUB_OUTPUT
         continue-on-error: true
 
       # Step 4: Post results to PR
@@ -93,7 +94,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const result = `## cfn-nag Results\n\`\`\`\n${steps['cfn_nag_step'].outputs.result}\n\`\`\``;
+            const result = `## cfn-nag Results\n\`\`\`\n${steps['cfn_nag_step'].outputs.*}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -130,7 +131,8 @@ jobs:
       - name: Run Pylint on all Python files
         id: pylint_step
         run: |
-          pylint *.py || pylint modules/**/*.py
+          pylint *.py 2>&1 $GITHUB_OUTPUT
+          pylint modules/**/*.py 2>&1 $GITHUB_OUTPUT
         continue-on-error: true
 
       # Step 5: Post results to PR
@@ -140,7 +142,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const result = `## Pylint Results\n\`\`\`\n${steps['pylint_step'].outputs.result}\n\`\`\``;
+            const result = `## Pylint Results\n\`\`\`\n${steps['pylint_step'].outputs.*}\n\`\`\``;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
