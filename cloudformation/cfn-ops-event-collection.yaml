@@ -1,0 +1,179 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS S3 Bucket to store access logs
+############################################################################################################
+# Since the S3 Buckets in this template are used for access logging, there are a few controls they cannot comply with.
+# SecurityHub S3.9: S3 bucket server access logging should be enabled - This could result in circular logging.
+# SecurityHub S3.17: S3 buckets should be encrypted at rest with AWS KMS keys - S3 Access Logging cannot leverage KMS, so SSE-S3 is used.
+# The resulting assets will require exception documentation.
+############################################################################################################
+
+Parameters:
+  ProjectPrefix:
+    Type: String
+    Description: Prefix for the S3 Bucket Name
+    Default: "ops-event-collection"
+    AllowedPattern: "[a-zA-Z0-9-]+"
+    ConstraintDescription: "Only alphanumeric characters and hyphens are allowed."
+  BucketLifeCycle:
+    Type: String
+    Description: Number of days to keep the logs
+    Default: "365"
+    AllowedPattern: "[0-9]+"
+    ConstraintDescription: "Only numeric characters are allowed."
+
+Resources:
+  OpsQueue:
+    Type: 'AWS::SQS::Queue'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W48
+            reason: "Ignoring KMS key, uses SSE-SQS"
+    Properties:
+      QueueName: !Sub '${ProjectPrefix}-${AWS::AccountId}-${AWS::Region}'
+      MessageRetentionPeriod: 345600
+      ReceiveMessageWaitTimeSeconds: 20
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OpsDeadLetterQueue.Arn
+        maxReceiveCount: 5
+      VisibilityTimeout: 30
+
+  OpsDeadLetterQueue:
+    Type: 'AWS::SQS::Queue'
+    Properties:
+      QueueName: !Sub '${ProjectPrefix}-${AWS::AccountId}-${AWS::Region}-dead-letter'
+      KmsMasterKeyId: 'alias/aws/sqs'
+      MessageRetentionPeriod: 345600
+      ReceiveMessageWaitTimeSeconds: 20
+
+  OpsQueuePolicy:
+    Type: 'AWS::SQS::QueuePolicy'
+    Properties:
+      Queues:
+        - !Ref 'OpsQueue'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: 'Allow S3 delivery of Notifications'
+            Effect: 'Allow'
+            Principal:
+              Service: 's3.amazonaws.com'
+            Action: 
+              - SQS:SendMessage
+            Resource: !GetAtt 'OpsQueue.Arn'
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+          - Sid: 'Allow SQS Notifications'
+            Effect: 'Allow'
+            Principal:
+              Service: 'sqs.amazonaws.com'  
+            Action:
+              - sqs:SendMessage
+            Resource: !GetAtt 'OpsQueue.Arn'
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: "Ignoring Access Logging as this is an Access Logging bucket."
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: TRUE
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      BucketName: !Sub '${ProjectPrefix}-${AWS::AccountId}-${AWS::Region}'
+      LifecycleConfiguration:
+        Rules:
+          - Id: DegradeOldLogs
+            Status: Enabled
+            ExpirationInDays: !Ref BucketLifeCycle
+            NoncurrentVersionExpirationInDays: !Ref BucketLifeCycle
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+      NotificationConfiguration:
+        QueueConfigurations:
+          - Event: s3:ReducedRedundancyLostObject
+            Queue: !GetAtt OpsQueue.Arn
+          - Event: s3:Replication:OperationFailedReplication
+            Queue: !GetAtt OpsQueue.Arn
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: 'SecurityHub_S3.7'
+          Value: 'Server Access Log Collection Point'
+        - Key: 'SecurityHub_S3.9'
+          Value: 'Server Access Log Collection Point'
+        - Key: 'SecurityHub_S3.17'
+          Value: 'Server Access Log Collection Point'
+        - Key: 'SecurityHub_S3.20'
+          Value: 'Server Access Log Collection Point'
+
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3ServerAccessLogs
+            Effect: Allow
+            Principal: 
+              Service:
+                - logging.s3.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${S3Bucket}/*"
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${S3Bucket}"
+              - !Sub "arn:${AWS::Partition}:s3:::${S3Bucket}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: Troubleshooting
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 
+              - s3:GetBucketPolicy
+              - s3:PutBucketPolicy
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${S3Bucket}"
+
+Outputs:
+  S3BucketName:
+    Description: "The name of the S3 Bucket"
+    Value: !Ref S3Bucket
+  S3BucketArn:
+    Description: "The ARN of the S3 Bucket"
+    Value: !GetAtt S3Bucket.Arn
+  SQSQueueName:
+    Description: "The name of the SQS Queue"
+    Value: !Ref OpsQueue
+  SQSQueueArn:
+    Description: "The ARN of the SQS Queue"
+    Value: !GetAtt OpsQueue.Arn
+  SQSDeadLetterQueueName:
+    Description: "The name of the SQS Dead Letter Queue"
+    Value: !Ref OpsDeadLetterQueue
+  SQSDeadLetterQueueArn:
+    Description: "The ARN of the SQS Dead Letter Queue"
+    Value: !GetAtt OpsDeadLetterQueue.Arn

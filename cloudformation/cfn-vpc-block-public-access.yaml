@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for blocking public access for the region'
+############################################################################################################
+# Meets Security Hub requirements for use with Lambda, EC2, and Cloud9 Services.
+############################################################################################################
+
+Parameters:
+  BlockType:
+    Type: String
+    Default: 'block-ingress'
+    Description: 'The type of block to apply to the VPC. Valid values are block-ingress and block-egress.'
+    AllowedValues:
+      - 'block-ingress'
+      - 'block-egress'
+    ConstraintDescription: 'Must be a valid block type.'
+
+Resources:
+
+  VPCBlockPublicAccessOptions:
+    Type: AWS::EC2::VPCBlockPublicAccessOptions
+    Properties:
+      InternetGatewayBlockMode: !Ref BlockType
