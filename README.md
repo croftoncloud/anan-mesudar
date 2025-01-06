@@ -79,6 +79,7 @@ Reference images for __Branch Protection__ under repository *Settings* tab:
 
 ![branch-protection-rule](assets/branch-protection-rules02.jpg)
 
+
 ### GitHub Reference Architecture
 
 GitHub Actions have been created for the following scenarios:
