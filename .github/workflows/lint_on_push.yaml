@@ -29,7 +29,12 @@ jobs:
       - name: Run cfn-lint
         id: run_cfn_lint
         run: |
-          cfn-lint cloudformation/**/*.yaml || true
+          cfn-lint cloudformation/**/*.yaml > cfn_lint_results.txt || true
+          if [ -s cfn_lint_results.txt ]; then
+            cat cfn_lint_results.txt
+          else
+            echo "CloudFormation format appears correct."
+          fi
 
   cfn-nag:
     name: Run cfn-nag scan
