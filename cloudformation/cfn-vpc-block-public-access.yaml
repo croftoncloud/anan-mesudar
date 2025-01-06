@@ -20,3 +20,4 @@ Resources:
     Type: AWS::EC2::VPCBlockPublicAccessOptions
     Properties:
       InternetGatewayBlockMode: !Ref BlockType
+      BadValue: True
