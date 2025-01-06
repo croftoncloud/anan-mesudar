@@ -24,11 +24,6 @@ Parameters:
 Resources:
   OpsQueue:
     Type: 'AWS::SQS::Queue'
-    Metadata:
-      cfn_nag:
-        rules_to_suppress:
-          - id: W48
-            reason: "Ignoring KMS key, uses SSE-SQS"
     Properties:
       QueueName: !Sub '${ProjectPrefix}-${AWS::AccountId}-${AWS::Region}'
       MessageRetentionPeriod: 345600
