@@ -164,3 +164,181 @@ def set_alternate_contacts(account_id, region, config):
     except Exception as e:
         logger.error(f"An unexpected error occurred while setting alternate contacts for account {account_id}: {e}")
         return False
+
+def get_s3_bucket_region(account_id, bucket_name):
+    """
+    Retrieves the AWS region for a specified S3 bucket.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        bucket_name (str): The name of the S3 bucket.
+
+    Returns:
+        str: The AWS region where the bucket resides, or an error message if the region cannot be determined.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id)
+        client = session.client("s3")
+
+        # Get the bucket location
+        location = client.get_bucket_location(Bucket=bucket_name).get("LocationConstraint")
+        # Handle default region for buckets with no location constraint
+        if location is None:
+            return "us-east-1"
+        return location
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        logger.error(f"Failed to retrieve region for bucket '{bucket_name}' in account {account_id}: {error_code}")
+        return f"Error: {error_code}"
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while retrieving the region for bucket '{bucket_name}': {e}")
+        return f"Error: {str(e)}"
+
+def get_s3_bucket_names(account_id, region):
+    """
+    Retrieves the names of all S3 buckets in an AWS account.
+    
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        region (str): The AWS region to use.
+        
+    Returns:
+        list: A list of bucket names.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id, region_name=region)
+        client = session.client("s3")
+        
+        # Get bucket names
+        response = client.list_buckets()
+        bucket_names = [bucket["Name"] for bucket in response["Buckets"]]
+        return bucket_names
+    except ClientError as e:
+        logger.error(f"Failed to retrieve S3 bucket names for account {account_id}: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while retrieving S3 bucket names for account {account_id}: {e}")
+        return []
+
+def check_s3_bucket(account_id, region, bucket_name):
+    """
+    Checks for the existence of an S3 bucket.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        region (str): The AWS region.
+        bucket_name (str): The name of the S3 bucket to check.
+
+    Returns:
+        bool: True if the bucket exists, False otherwise.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id, region_name=region)
+        client = session.client("s3")
+
+        # Check bucket existence
+        client.head_bucket(Bucket=bucket_name)
+        logger.debug(f"Bucket '{bucket_name}' exists in account {account_id}.")
+        return True
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        if error_code == "404":
+            logger.debug(f"Bucket '{bucket_name}' does not exist in account {account_id}.")
+            return False
+        else:
+            logger.error(f"Error checking bucket '{bucket_name}' in account {account_id}: {e}")
+            return False
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while checking bucket '{bucket_name}' in account {account_id}: {e}")
+        return False
+
+def get_s3_access_logging(account_id, bucket_name):
+    """
+    Checks the access logging configuration for an S3 bucket.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        bucket_name (str): The name of the S3 bucket to query.
+
+    Returns:
+        str: A message indicating whether access logging is configured or the destination bucket if it is.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id)
+        client = session.client("s3")
+
+        # Get the bucket location
+        bucket_region = client.get_bucket_location(Bucket=bucket_name).get("LocationConstraint", "us-east-1")
+        if bucket_region is None:
+            bucket_region = "us-east-1"  # Default for no location constraint
+
+        # Initialize client for the bucket's region
+        regional_client = boto3.Session(profile_name=account_id, region_name=bucket_region).client("s3")
+
+        # Get bucket logging configuration
+        logging_config = regional_client.get_bucket_logging(Bucket=bucket_name)
+        if "LoggingEnabled" in logging_config:
+            target_bucket = logging_config["LoggingEnabled"]["TargetBucket"]
+            logger.debug(f"Access logging is configured for bucket '{bucket_name}' with target bucket '{target_bucket}'.")
+            return f"Access logging configured. Destination bucket: {target_bucket}"
+        else:
+            logger.debug(f"Access logging is not configured for bucket '{bucket_name}'.")
+            return "Access Logging Not Configured"
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        logger.error(f"Failed to retrieve access logging settings for bucket '{bucket_name}' in account {account_id}: {error_code}")
+        return f"Error: {error_code}"
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while checking access logging for bucket '{bucket_name}': {e}")
+        return f"Error: {str(e)}"
+
+def set_s3_access_logging(account_id, bucket_name, access_logging_bucket):
+    """
+    Configures access logging for an S3 bucket.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        bucket_name (str): The name of the S3 bucket to configure logging for.
+        access_logging_bucket (str): The access logging target bucket.
+
+    Returns:
+        str: A message indicating whether logging was configured successfully or if there were errors.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id)
+        client = session.client("s3")
+
+        # Get the bucket region
+        bucket_region = get_s3_bucket_region(account_id, bucket_name)
+        if bucket_region.startswith("Error"):
+            return f"Error: Unable to determine region for bucket {bucket_name}. {bucket_region}"
+
+        # Configure access logging
+        client.put_bucket_logging(
+            Bucket=bucket_name,
+            BucketLoggingStatus={
+                "LoggingEnabled": {
+                    "TargetBucket": access_logging_bucket,
+                    "TargetPrefix": "",
+                    "TargetObjectKeyFormat": {
+                        "PartitionedPrefix": {
+                            "PartitionDateSource": "EventTime",
+                        }
+                    },
+                }
+            }
+        )
+        logger.debug(f"Access logging enabled for bucket '{bucket_name}' with target bucket '{access_logging_bucket}'.")
+        return f"Access logging configured for bucket '{bucket_name}'. Logs will be stored in '{access_logging_bucket}'."
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        logger.error(f"\t\t\tFailed to configure access logging for bucket '{bucket_name}' in account {account_id}: {access_logging_bucket} : {error_code}")
+        return f"Error: {error_code}"
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while configuring access logging for bucket '{bucket_name}': {e}")
+        return f"Error: {str(e)}"

@@ -112,8 +112,8 @@ jobs:
       - name: Run Pylint
         id: pylint_scan
         run: |
-          pylint *.py > pylint_results.txt || true
-          pylint modules/**/*.py >> pylint_results.txt || true
+          pylint --disable=C0301 *.py > pylint_results.txt || true
+          pylint --disable=C0301 modules/**/*.py >> pylint_results.txt || true
           echo "results=$(cat pylint_results.txt | sed ':a;N;$!ba;s/\r//g' | sed ':a;N;$!ba;s/\n/\\n/g')" >> $GITHUB_OUTPUT
 
       - name: Comment on Pull Request

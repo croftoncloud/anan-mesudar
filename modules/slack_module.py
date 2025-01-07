@@ -5,6 +5,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 def verify_slack_connection(webhook_url):
+    '''
+    Verify that the Slack connection is successful.
+    
+    Args:
+        webhook_url (str): The Slack webhook URL.
+
+    Returns:
+        None
+    '''
     try:
         response = requests.post(
             webhook_url,
