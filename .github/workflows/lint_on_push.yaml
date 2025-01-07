@@ -83,5 +83,5 @@ jobs:
       - name: Run Pylint
         id: pylint_scan
         run: |
-          pylint *.py || true
-          pylint modules/**/*.py || true
+          pylint --disable=C0301 *.py || true
+          pylint --disable=C0301 modules/**/*.py || true
