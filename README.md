@@ -79,13 +79,22 @@ Reference images for __Branch Protection__ under repository *Settings* tab:
 
 ![branch-protection-rule](assets/branch-protection-rules02.jpg)
 
-#### GitHub Reference Architecture
+
+### GitHub Reference Architecture
+
+GitHub Actions have been created for the following scenarios:
+
+**push**
+
+__lint_on_Push__: When a change is pushed to a repository, basic linting will occur. Output is available under GitHub actions.
+
+**pull_request**
+
+__lint_on_pull_request__: When a PR is created, the same LINTing is performed but the results are appended to the Conversation as comments for easier review by developers and approvers.
+
 
 *Create the following GitHub Actions and complete the documentation*:
 
-.github/workflows/lint
-    - LINT for cloudformation, terraform, and python code
-    - findings are fed back into the comments
 .github/workflows/snyk
     - Static Scan the repository via Snyk as an example
     - Findings are fed back into the comments
