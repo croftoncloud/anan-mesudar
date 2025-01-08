@@ -14,6 +14,8 @@ from modules.aws_module import (
     get_s3_access_logging,
     get_s3_bucket_region,
     set_s3_access_logging,
+    get_s3_bucket_notifications,
+    set_s3_bucket_notifications,
 )
 from modules.jira_module import verify_jira_connection
 from modules.slack_module import verify_slack_connection
@@ -254,6 +256,39 @@ def get_access_logging_for_all_buckets(config):
                 else:
                     logger.info(f"\tAccess Logging for Bucket '{bucket}': {result}")
 
+def get_s3_bucket_notifications_for_all_buckets(config):
+    '''
+    Query S3 bucket notifications for all buckets in an account.
+
+    Args:
+        account_id (str): The AWS account ID.
+        bucket_name (str): The S3 bucket name.
+
+    Returns:
+        None
+
+    '''
+    logger.info("Retrieving active accounts in AWS Organizations...")
+    accounts = list_active_accounts(
+        account_id=config["aws"]["management_account_id"],
+        region=config["aws"]["default_region"],
+    )
+
+    logger.info(f"Found {len(accounts)} active accounts. Checking S3 buckets...\n")
+    for account in accounts:
+        bucket_names = get_s3_bucket_names(
+            account_id=account["Id"],
+            region=config["aws"]["default_region"],
+        )
+        logger.info(f"Found {len(bucket_names)} buckets in account {account['Id']} ({account['Name']}).")
+        for bucket_name in bucket_names:
+            get_s3_bucket_notifications(
+                account_id=account["Id"],
+                bucket_name=bucket_name,
+                security_event_collection_prefix=config["aws"]["security_event_collection_prefix"],
+            )
+
+
 def main():
     '''
     Main function to parse CLI arguments and run the appropriate action.
@@ -295,6 +330,11 @@ def main():
         action="store_true",
         help="Enable access logging for S3 buckets."
     )
+    parser.add_argument(
+        "--get-s3-bucket-notifications",
+        action="store_true",
+        help="Query S3 bucket notifications."
+    )
     args = parser.parse_args()
 
     # Load configuration
@@ -312,6 +352,8 @@ def main():
         check_s3_buckets_for_all_accounts(config)
     elif args.s3_get_access_logging:
         get_access_logging_for_all_buckets(config)
+    elif args.get_s3_bucket_notifications:
+        get_s3_bucket_notifications_for_all_buckets(config)
     else:
         logger.info("No action specified. Use --help to see available options.")
 
