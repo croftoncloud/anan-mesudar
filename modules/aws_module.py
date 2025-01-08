@@ -342,3 +342,101 @@ def set_s3_access_logging(account_id, bucket_name, access_logging_bucket):
     except Exception as e:
         logger.error(f"An unexpected error occurred while configuring access logging for bucket '{bucket_name}': {e}")
         return f"Error: {str(e)}"
+
+def get_s3_bucket_notifications(account_id, bucket_name, security_event_collection_prefix):
+    """
+    Checks the notification configuration for an S3 bucket.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        bucket_name (str): The name of the S3 bucket to check.
+
+    Returns:
+        str: A message indicating whether notifications are enabled or not.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id)
+        client = session.client("s3")
+
+        # Get the bucket notification configuration
+        notification_config = client.get_bucket_notification_configuration(Bucket=bucket_name)
+
+        # Check if any notification configuration exists
+        if notification_config.get("TopicConfigurations") or \
+           notification_config.get("QueueConfigurations") or \
+           notification_config.get("LambdaFunctionConfigurations"):
+            logger.info(f"\tNotifications are enabled for bucket '{bucket_name}'.")
+            return "Notifications enabled"
+        else:
+            logger.info(f"\t ~ No notifications are configured for bucket '{bucket_name}', Enabling.")
+            # enable notifications via set_s3_bucket_notifications
+            set_s3_bucket_notifications(account_id, bucket_name, security_event_collection_prefix)
+
+            return "Notifications Not Enabled"
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        logger.error(f"Failed to retrieve notifications for bucket '{bucket_name}' in account {account_id}: {error_code}")
+        return f"Error: {error_code}"
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while retrieving notifications for bucket '{bucket_name}': {e}")
+        return f"Error: {str(e)}"
+
+def set_s3_bucket_notifications(account_id, bucket_name, security_event_collection_prefix):
+    """
+    Configures a notification policy for an S3 bucket.
+
+    Args:
+        account_id (str): The AWS account ID to use as the profile name.
+        bucket_name (str): The name of the S3 bucket to configure notifications for.
+        security_event_collection_prefix (str): The prefix used to construct the target SQS queue name.
+
+    Returns:
+        str: A message indicating whether the notification policy was applied successfully or if there were errors.
+    """
+    try:
+        # Initialize session and client
+        session = boto3.Session(profile_name=account_id)
+        client = session.client("s3")
+
+        # Get the bucket region
+        bucket_region = get_s3_bucket_region(account_id, bucket_name)
+        if bucket_region.startswith("Error"):
+            return f"Error: Unable to determine region for bucket {bucket_name}. {bucket_region}"
+
+        # Construct the target SQS queue ARN
+        queue_name = f"{security_event_collection_prefix}-{account_id}-{bucket_region}"
+        queue_arn = f"arn:aws:sqs:{bucket_region}:{account_id}:{queue_name}"
+
+        # Apply the notification policy
+        client.put_bucket_notification_configuration(
+            Bucket=bucket_name,
+            NotificationConfiguration={
+                "QueueConfigurations": [
+                    {
+                        "QueueArn": queue_arn,
+                        "Events": [
+                            "s3:ReducedRedundancyLostObject",
+                            "s3:Replication:OperationFailedReplication"
+                        ],
+                        "Filter": {
+                            "Key": {
+                                "FilterRules": [
+                                    {"Name": "prefix", "Value": ""},
+                                    {"Name": "suffix", "Value": ""},
+                                ]
+                            }
+                        },
+                    }
+                ]
+            },
+        )
+        logger.info(f"\t +++ Notification policy applied to bucket '{bucket_name}' with queue ARN '{queue_arn}'.")
+        return f"Notification policy configured for bucket '{bucket_name}'. Target queue ARN: {queue_arn}."
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        logger.error(f"Failed to apply notification policy for bucket '{bucket_name}' in account {account_id}: {error_code}")
+        return f"Error: {error_code}"
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while applying notification policy for bucket '{bucket_name}': {e}")
+        return f"Error: {str(e)}"
